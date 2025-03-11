@@ -1,0 +1,103 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+// 函数声明
+void print_usage();
+int is_number(const char *str);
+void calculate(double num1, char op, double num2);
+
+int main(int argc, char *argv[]) {
+    if (argc == 4) {
+        // 命令行模式
+        double num1, num2;
+        char op;
+        // 检查输入是否为数字
+        if (!is_number(argv[1])) {
+            printf("The input cannot be interpreted as numbers!\n");
+            return 1;
+        }
+        if (!is_number(argv[3])) {
+            printf("The input cannot be interpreted as numbers!\n");
+            return 1;
+        }
+
+        num1 = atof(argv[1]);
+        op = argv[2][0]; // 运算符
+        num2 = atof(argv[3]);
+
+        calculate(num1, op, num2);
+    } else if (argc == 1) {
+        // 交互模式
+        char input[100];
+        double num1, num2;
+        char op;
+
+        printf("Enter expressions (e.g., 2 + 3) or type 'quit' to exit:\n");
+
+        while (1) {
+            printf("> ");
+            if (fgets(input, sizeof(input), stdin) == NULL) {
+                break; // 读取输入失败
+            }
+
+            // 去除换行符
+            input[strcspn(input, "\n")] = '\0';
+
+            // 检查是否退出
+            if (strcmp(input, "quit") == 0) {
+                break;
+            }
+
+            // 解析输入
+            if (sscanf(input, "%lf %c %lf", &num1, &op, &num2) == 3) {
+                calculate(num1, op, num2);
+            } else {
+                printf("Invalid input format! Please enter expressions like '2 + 3'.\n");
+            }
+        }
+    } else {
+        print_usage();
+    }
+
+    return 0;
+}
+
+// 判断字符串是否为数字
+int is_number(const char *str) {
+    char *endptr;
+    strtod(str, &endptr);
+    return *endptr == '\0'; // 如果转换到字符串末尾，则是数字
+}
+
+// 执行计算并输出结果
+void calculate(double num1, char op, double num2) {
+    switch (op) {
+        case '+':
+            printf("%g + %g = %g\n", num1, num2, num1 + num2);
+            break;
+        case '-':
+            printf("%g - %g = %g\n", num1, num2, num1 - num2);
+            break;
+        case 'x':
+            printf("%g * %g = %g\n", num1, num2, num1 * num2);
+            break;
+        case '/':
+            if (num2 == 0) {
+                printf("A number cannot be divided by zero.\n");
+            } else {
+                printf("%g / %g = %.8g\n", num1, num2, num1 / num2);
+            }
+            break;
+        default:
+            printf("Invalid operator! Supported operators are +, -, x, /.\n");
+    }
+}
+
+// 打印用法
+void print_usage() {
+    printf("Usage:\n");
+    printf("  Command-line mode: ./calculator <num1> <operator> <num2>\n");
+    printf("  Interactive mode:  ./calculator\n");
+}
