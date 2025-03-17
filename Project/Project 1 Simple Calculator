@@ -1,115 +1,452 @@
+#include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
-// 函数声明
-void print_usage();
-int is_number(const char *str);
-void calculate(double num1, char op, double num2);
+#define MAX_DIGITS 1000
 
-int main(int argc, char *argv[]) {
-    if (argc == 3) {
-        // 命令行模式
-        double num1, num2;
-        char op;
-        // 检查输入是否为数字
-        if (!is_number(argv[1])) {
-            printf("The input cannot be interpreted as numbers!\n");
-            return 1;
-        }
-        if (!is_number(argv[3])) {
-            printf("The input cannot be interpreted as numbers!\n");
-            return 1;
-        }
+typedef struct {
+  int digits[MAX_DIGITS];  // Recerse order storage, convenient for the simulation of vertical operation.
+  int len;                 // Length of the number
+  int decimal_point;       // Position of the decimal point
+  int sign;                // Sign of the number
+} BigNumber;
 
-        num1 = atof(argv[1]);
-        op = argv[2][0]; // 运算符
-        num2 = atof(argv[3]);
+// Substraction initiative
+void big_sub(const BigNumber* a, const BigNumber* b, BigNumber* result);
 
-        calculate(num1, op, num2);
-    } else if (argc == 1) {
-        // 交互模式
-        char input[100];
-        double num1, num2;
-        char op;
+// Detection of the scientific notation base part
+int validate_base_part(const char* num) {
+  int dot_count = 0;
+  int digit_seen = 0;
 
-        printf("Enter expressions (e.g., 2 + 3) or type 'quit' to exit:\n");
-
-        while (1) {
-            printf("> ");
-            // 读取输入失败
-            if (fgets(input, sizeof(input), stdin) == NULL) { 
-                break; 
-            }
-            
-            input[strcspn(input, "\n")] = '\0'; // 去除换行符
-
-            // 检查是否退出
-            if (strcmp(input, "quit") == 0) {
-                break;
-            }
-
-            // 解析输入
-            if (sscanf(input, "%lf %c %lf", &num1, &op, &num2) == 3) {
-                calculate(num1, op, num2);
-            } else {
-                printf("Invalid input format! Please enter expressions like '2 + 3'.\n");
-            }
-        }
+  for (int i = 0; i < strlen(num); i++) {
+    if (num[i] == '.') {
+      if (dot_count >= 1) {
+        return 0;
+      }
+      dot_count++;
+    } else if (isdigit(num[i])) {
+      digit_seen = 1;
     } else {
-        print_usage();
+      return 0;
     }
+  }
 
+  if (!digit_seen) {
     return 0;
+  }
+
+  if (num[0] == '.' || num[strlen(num) - 1] == '.') {
+    return 0;
+  }
+
+  return 1;
 }
 
-// 判断字符串是否为数字
-int is_number(const char *str) {
-    char *endptr;
-    strtod(str, &endptr);
-    return *endptr == '\0'; // 如果转换到字符串末尾，则是数字
-}
+//Detection of the validity of the number
+int validate_number(const char* num) {
+  if (strlen(num) == 0) {
+    return 0;
+  }
 
-// 执行计算并输出结果
-void calculate(double num1, char op, double num2) {
-    switch (op) {
-        case '+': // Addition
-            printf("%g + %g = %g\n", num1, num2, num1 + num2); 
-            break;
-        case '-': // Substraction
-            printf("%g - %g = %g\n", num1, num2, num1 - num2); 
-            break;
-        case 'x': // Multiplication
-            printf("%g x %g = %g\n", num1, num2, num1 * num2); 
-            break;
-        case '/': //Division
-            if (num2 == 0) {
-                printf("A number cannot be divided by zero.\n");
-            } else {
-                printf("%g / %g = %.8g\n", num1, num2, num1 / num2);
-            }
-            break;
-        case '^':
-            if (num1 == 0 && num2 == 0){
-                printf("Invalid input.\n");
-            } else {
-                double ans = 1;
-                for (size_t i = 0; i < num2; i++)
-                {
-                    ans *= num1;
-                }
-                printf("%g ^ %g = %g\n", num1, num2, ans);
-            }
-            break;
-        default:
-            printf("Invalid operator! Supported operators are +, -, x, /.\n");
+  int start = 0;
+  if (num[0] == '+' || num[0] == '-') {
+    start = 1;
+    if (strlen(num) == 1) {
+      return 0;
     }
+  }
+
+  char* e_pos = strchr(num + start, 'e');
+  if (!e_pos) {
+    e_pos = strchr(num + start, 'E');
+  }
+
+  if (e_pos) {
+    int e_index = e_pos - num;
+
+    char base_part[256];
+    strncpy(base_part, num + start, e_index - start);
+    base_part[e_index - start] = '\0';
+
+    if (!validate_base_part(base_part)) {
+      return 0;
+    }
+
+    const char* exp_part = num + e_index + 1;
+    if (strlen(exp_part) == 0) {
+      return 0;
+    }
+
+    int exp_start = 0;
+    if (exp_part[0] == '+' || exp_part[0] == '-') {
+      exp_start = 1;
+      if (strlen(exp_part) == 1) {
+        return 0;
+      }
+    }
+
+    for (int i = exp_start; i < strlen(exp_part); i++) {
+      if (!isdigit(exp_part[i])) {
+        return 0;
+      }
+    }
+
+    return 1;
+  } else {
+    return validate_base_part(num + start);
+  }
 }
 
-// 打印用法
-void print_usage() {
-    printf("Usage:\n");
-    printf("  Command-line mode: ./calculator <num1> <operator> <num2>\n");
-    printf("  Interactive mode:  ./calculator\n");
+// Tranfrom array into BigNumber type
+void parse_number(const char* str, BigNumber* num) {
+  memset(num, 0, sizeof(BigNumber));
+  num->sign = 1;
+  int start = 0;
+  int len = strlen(str);
+
+  // Proccess the sign
+  if (str[0] == '-') {
+    num->sign = -1;
+    start = 1;
+  } else if (str[0] == '+') {
+    start = 1;
+  }
+
+  // Combined the fractional part and integer part together
+  char buffer[MAX_DIGITS] = {0};
+  int buf_idx = 0;
+  int dot_pos = -1;
+  for (int i = start; i < len; i++) {
+    if (str[i] == '.') {
+      dot_pos = buf_idx;
+      continue;
+    }
+    if (isdigit(str[i])) {
+      buffer[buf_idx++] = str[i];
+    }
+  }
+  buffer[buf_idx] = '\0';
+
+  // 设置小数点位数
+  num->decimal_point = (dot_pos != -1) ? (buf_idx - dot_pos) : 0;
+
+  // 逆序存储每一位数字
+  num->len = buf_idx;
+  for (int i = 0; i < buf_idx; i++) {
+    num->digits[i] = buffer[buf_idx - 1 - i] - '0';
+  }
+
+  int is_zero = 1;
+  for (int i = 0; i < num->len; i++) {
+    if (num->digits[i] != 0) {
+      is_zero = 0;
+      break;
+    }
+  }
+  if (is_zero) {
+    num->sign = 1;
+  }
+}
+
+// Compar two numbers value in its absolute value
+int compare_abs(const BigNumber* a, const BigNumber* b) {
+  int total_a = a->len;
+  int total_b = b->len;
+  int max_len = (total_a > total_b) ? total_a : total_b;
+
+  for (int i = max_len - 1; i >= 0; i--) {
+    int digit_a = (i < a->len) ? a->digits[i] : 0;
+    int digit_b = (i < b->len) ? b->digits[i] : 0;
+    if (digit_a != digit_b) {
+      return (digit_a > digit_b) ? 1 : -1;
+    }
+  }
+  return 0;
+}
+
+void big_add(const BigNumber* a, const BigNumber* b, BigNumber* result) {
+  memset(result, 0, sizeof(BigNumber));
+
+  // Align decimal point
+  int max_dp = (a->decimal_point > b->decimal_point) ? a->decimal_point
+                                                      : b->decimal_point;
+  BigNumber a_adj = *a;
+  BigNumber b_adj = *b;
+
+  // Adjust the decimal point place of a
+  int delta_a = max_dp - a_adj.decimal_point;
+  for (int i = 0; i < delta_a; i++) {
+    if (a_adj.len < MAX_DIGITS) {
+      memmove(a_adj.digits + 1, a_adj.digits, a_adj.len * sizeof(int));
+      a_adj.digits[0] = 0;
+      a_adj.len++;
+    }
+  }
+  a_adj.decimal_point = max_dp;
+
+  // Adjust the decimal point place of b
+  int delta_b = max_dp - b_adj.decimal_point;
+  for (int i = 0; i < delta_b; i++) {
+    if (b_adj.len < MAX_DIGITS) {
+      memmove(b_adj.digits + 1, b_adj.digits, b_adj.len * sizeof(int));
+      b_adj.digits[0] = 0;
+      b_adj.len++;
+    }
+  }
+  b_adj.decimal_point = max_dp;
+
+  int max_len = (a_adj.len > b_adj.len) ? a_adj.len : b_adj.len;
+
+  if (a_adj.sign == b_adj.sign) {
+    int carry = 0;
+    for (int i = 0; i < max_len; i++) {
+      int sum = carry + (i < a_adj.len ? a_adj.digits[i] : 0) +
+               (i < b_adj.len ? b_adj.digits[i] : 0);
+      result->digits[result->len++] = sum % 10;
+      carry = sum / 10;
+    }
+    if (carry) {
+      result->digits[result->len++] = carry;
+    }
+    result->sign = a_adj.sign;
+  } else {
+    int cmp = compare_abs(&a_adj, &b_adj);
+    if (cmp == 0) {
+      result->digits[result->len++] = 0;
+      result->sign = 1;
+    } else if (cmp > 0) {
+      big_sub(&a_adj, &b_adj, result);
+      result->sign = a_adj.sign;
+    } else {
+      big_sub(&b_adj, &a_adj, result);
+      result->sign = b_adj.sign;
+    }
+  }
+  result->decimal_point = max_dp;
+}
+
+// Substraction 
+void big_sub(const BigNumber* a, const BigNumber* b, BigNumber* result) {
+  BigNumber temp = *b;
+  temp.sign = -temp.sign;
+  // Call the addition function
+  big_add(a, &temp, result);
+}
+
+// Multiplication
+void big_mul(const BigNumber* a, const BigNumber* b, BigNumber* result) {
+  memset(result, 0, sizeof(BigNumber));
+  result->sign = a->sign * b->sign;
+  result->decimal_point = a->decimal_point + b->decimal_point;
+
+  for (int i = 0; i < a->len; i++) {
+    int carry = 0;
+    for (int j = 0; j < b->len; j++) {
+      int temp = a->digits[i] * b->digits[j] + result->digits[i + j] + carry;
+      result->digits[i + j] = temp % 10;
+      carry = temp / 10;
+    }
+    if (carry > 0) {
+      result->digits[i + b->len] += carry;
+    }
+  }
+
+  result->len = a->len + b->len;
+  while (result->len > 0 && result->digits[result->len - 1] == 0) {
+    result->len--;
+  }
+}
+
+// Transform BigNumber into array
+void big_number_to_string(const BigNumber* num, char* str) {
+  int idx = 0;
+  if (num->sign == -1) {
+    str[idx++] = '-';
+  }
+
+  int int_len = num->len - num->decimal_point;
+  if (int_len <= 0) {
+    str[idx++] = '0';
+  } else {
+    for (int i = int_len - 1; i >= 0; i--) {
+      str[idx++] = num->digits[i + num->decimal_point] + '0';
+    }
+  }
+
+  int decimal_digits = num->decimal_point;
+  while (decimal_digits > 0 && num->digits[decimal_digits - 1] == 0) {
+    decimal_digits--;
+  }
+  if (decimal_digits > 0) {
+    str[idx++] = '.';
+    for (int i = decimal_digits - 1; i >= 0; i--) {
+      str[idx++] = num->digits[i] + '0';
+    }
+  }
+
+  str[idx] = '\0';
+}
+
+// Expression part of the code
+void process_expression(const char* expr) {
+  char expr_copy[1024];
+  int j = 0;
+  for (int i = 0; expr[i]; i++) {
+    if (!isspace(expr[i])) {
+      expr_copy[j++] = expr[i];
+    }
+  }
+  expr_copy[j] = '\0';
+
+  if (j == 0) {
+    // Null input
+    printf("Error: Empty input!\n");
+    return;
+  }
+
+  // Check for the operator
+  int op_count = 0;
+  int op_pos = -1;
+  for (int i = 0; expr_copy[i]; i++) {
+    if (strchr("+-x/", expr_copy[i])) {
+      if (expr_copy[i] == '-' || expr_copy[i] == '+') {
+        if (i == 0 || strchr("+-x/(", expr_copy[i - 1])) {
+          continue;
+        }
+      }
+
+      op_count++;
+      op_pos = i;
+    }
+  }
+
+  if (op_count != 1) {
+    printf("Error: Invalid operator count!\n");
+    return;
+  }
+
+  char op = expr_copy[op_pos];
+  char left[1024], right[1024];
+  strncpy(left, expr_copy, op_pos);
+  left[op_pos] = '\0';
+  strcpy(right, expr_copy + op_pos + 1);
+
+  if (strlen(left) == 0 || strlen(right) == 0) {
+    printf("Error: Missing operand!\n");
+    return;
+  }
+
+  if (!validate_number(left)) {
+    printf("Error: Invalid first operand: %s\n", left);
+    return;
+  }
+  if (!validate_number(right)) {
+    printf("Error: Invalid second operand: %s\n", right);
+    return;
+  }
+
+  // 处理科学记数法
+  int left_is_sci = (strchr(left, 'e') != NULL || strchr(left, 'E') != NULL);
+  int right_is_sci = (strchr(right, 'e') != NULL || strchr(right, 'E') != NULL);
+
+  if (left_is_sci || right_is_sci) {
+    char* endptr;
+    long double d1 = strtold(left, &endptr);
+    if (*endptr != '\0') {
+      printf("Error: Invalid first operand: %s\n", left);
+      return;
+    }
+    long double d2 = strtold(right, &endptr);
+    if (*endptr != '\0') {
+      printf("Error: Invalid second operand: %s\n", right);
+      return;
+    }
+
+    long double result;
+    switch (op) {
+      case '+':
+        result = d1 + d2;
+        break;
+      case '-':
+        result = d1 - d2;
+        break;
+      case 'x':
+        result = d1 * d2;
+        break;
+      case '/':
+        if (d2 == 0.0) {
+          printf("A number cannot be divided by zero!\n");
+          return;
+        }
+        result = d1 / d2;
+        break;
+      default:
+        printf("Invalid operator!\n");
+        return;
+    }
+
+    printf("%s %c %s = %.8Le\n", left, op, right, result);
+  } else {
+    BigNumber num1, num2;
+    parse_number(left, &num1);
+    parse_number(right, &num2);
+
+    if (op == '/') {
+      double d1 = atof(left);
+      double d2 = atof(right);
+      if (d2 == 0) {
+        printf("A number cannot be divided by zero!\n");
+        return;
+      }
+      double result = d1 / d2;
+      printf("%s %c %s = %.8f\n", left, op, right, result);
+    } else {
+      BigNumber result_num;
+      switch (op) {
+        case '+':
+          big_add(&num1, &num2, &result_num);
+          break;
+        case '-':
+          big_sub(&num1, &num2, &result_num);
+          break;
+        case 'x':
+          big_mul(&num1, &num2, &result_num);
+          break;
+        default:
+          printf("Invalid operator!\n");
+          return;
+      }
+      char result_str[1024];
+      big_number_to_string(&result_num, result_str);
+      printf("%s %c %s = %s\n", left, op, right, result_str);
+    }
+  }
+}
+
+int main(int argc, char* argv[]) {
+  if (argc > 1) {
+    char expr[1024] = {0};
+    for (int i = 1; i < argc; i++) {
+      strcat(expr, argv[i]);
+    }
+    process_expression(expr);
+  } else {
+    char input[1024];
+    printf("Enter expressions or 'quit' to exit:\n");
+    while (1) {
+      printf("> ");
+      if (!fgets(input, sizeof(input), stdin)) {
+        break;
+      }
+      input[strcspn(input, "\n")] = 0;
+      if (strcmp(input, "quit") == 0) {
+        break;
+      }
+      process_expression(input);
+    }
+  }
+  return 0;
 }
