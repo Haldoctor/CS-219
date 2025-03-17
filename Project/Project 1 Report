@@ -1,0 +1,141 @@
+# Project 1 Report 
+李泓霖 12312109
+## Introduction
+In this project I used DeepSeek to help me to finish the project. The ideas are all from me. Some of the codes are from DeepSeek. The submission version of the code is polished by Deepseek, there didn't have any chage on the algorithm, I just asked Deepseek to polish the code in to the format of Google C++ Style Guide. Other AI tools are not used in this project.
+## Thoughts of the calculator
+### Detection part & Expression part
+Due to my thought on the calculation part, numbers are read in as char array, so I need a section which can detect wether the numbers, operator and the instructions the user input is valid and proccessable. 
+#### Validate_base_part
+This part is called validate_base_part. Because the format of scientific notation is different to the normal number, so I add this part to detect whether the scientific notation input is valid.
+#### Validate_number
+This part is called validate_number. Invalid input such as only operator, no number, can't calculate letters and multiple apperance of decimal point. If this part detect invalid situation, the program will directly output the wrong message.
+#### Process_expression
+This part is called process_expression. In this part the output and several format of invalid input will be detected.
+### Transaction part
+This section has two part of code, one is ` parse_number ` and another is ` big_number_to_string `
+#### Parse_number part
+In this part, I turn the inputs into a self defined type of data which name is ` BigNumber `. The codes below is the definiton of the ` BigNumber `.
+```C
+typedef struct {
+  int digits[MAX_DIGITS]; // MAX_DIGITS = 1000
+  int len;                
+  int decimal_point;       
+  int sign;                
+} BigNumber;
+```
+In this struction, the input number will be stored in the formation of the combination of the information like the sign, length, decimal point location and an array contains all its digits.
+#### Big_number_to_string part
+In this part, the numbers who are stored as ` BigNumber ` type will be translated into an array which is ready to be output.
+### Calculation part
+Considering that the data type of C has limit on its percision and its numeric range, I didn't just use the data type provided by C, I used arrays to record the number. Also the way to calculate needs to be changed. I changed the method from directly calculation into the simulation of the vertical operation. In this way, the calculator can support larger range of value calculation and also retain a more percise percision.
+#### 1. Addition
+This part's name is ` big_add `. In this part I proccess two numbers add up digit by digit, in that case I can maintain more precision and larger numeric range of the calculation.
+#### 2. Substraction
+This part is called ` big_sub ` in the code, because substraction is actually a type of addition in essence, so I just call the addition function to solve the problem.
+#### 3. Multiplication
+This section's name is ` big_mul `In this part I use vertical operation to solve the two numbers calculation. 
+In this part the main problem is to solve the decimal point problem. Different to directly calculate the value, simulating the vertical operation means I need to manage the decimal point by myself. So That is why I have a value ` decimal_point ` in the ` BigNumber `. I used this to record the position of the decimal point and after the execution I add up two decimal point position to get the result's decimal point position. In that case, I can fully manage the decimal point by myself.
+#### 4. Division
+This part I didn't use vertical operation to simulate the division operation, I just calculate the result directly. And this made the division in the program has a very limited range and percision.
+#### 5. Calculation of scientific notation
+In this part I also didn't use the vertical operation to solve the two number calculation. Actually I didn't figure out whether scientific notation can be calculated by vertical operation. So I just use ` long double ` to store and calculate scientific notation.
+## Instruction Manual
+### Input instruction
+This calculator only provide two values calculation. User needs to input two numbers and an operator to give the calculator an instruction. The input format needs to be like " number1 operator number2". After the one line input, press the "Enter" button on your conputer to begin the calculation. 
+#### Mention
+1. When user input a number like "01" the calculator will automatically recognize this number as "1".
+2. The operator for muptiplication is "x" which is a lowercase x.
+3. The max digit support by addition, substraction and multiplication is 1000 digits, as for division, the max digit support is limited by the data type ` double `, and for scientific notation calculation the max digit is limited to the data type ` long double `.
+### Output format explanation
+1. The output format is "number1 ‘operator’ number2 = number3" Number1, number2 and operator are just the input of the calculator, number3 is the result of the calculation.
+2. When running division and scientific notation calculation, the calculator automatically keep eight decimal place.
+3. Output ` Error: Invalid operator count! ` means for invalid operators input like ` 4 + 5 + 6 `.
+4. Output ` Error: Missing operand! ` means for the lack of operators.
+5. Output ` Error: Invalid first operand: ` means that the first number is invalid.
+6. Output ` rror: Invalid second operand: ` means that the second number is invalid.
+7. Output ` A number cannot be divided by zero! ` means the divisor input is zero, and that is invalid in the division definition.
+8. Output ` Invalid operator! ` means the operator is invalid.
+### Exit method
+There is a simple way to exit the calculator. Just enter "quit" in the command window and you will exit the program.
+
+## Sample Presentation
+All the sample test are run on one device. The device in Apple's Macbook Air with M1 chip inside.
+### 1. Addition
+```C
+(base) HAL@Macbook-Air project2025 % ./a.out
+Enter expressions or 'quit' to exit:
+> 2 + 3
+2 + 3 = 5
+> 2222222222 + 3333333333               
+2222222222 + 3333333333 = 5555555555
+> 12345678.9 + 12345678.9
+12345678.9 + 12345678.9 = 24691357.8
+> -9 + -9
+-9 + -9 = -18
+```
+### 2. Subtraction
+```C
+(base) HAL@Macbook-Air project2025 % ./a.out
+Enter expressions or 'quit' to exit:
+> 3 - 2
+3 - 2 = 1
+> 2 - 3
+2 - 3 = -1
+> 1111111111 - 1111111111.1
+1111111111 - 1111111111.1 = -0.1
+> 21.1 - 1.1
+21.1 - 1.1 = 20.0
+> 1.1 - 21.1
+1.1 - 21.1 = -20.0
+> -9 - -9
+-9 - -9 = 0
+```
+### 3. Multiplication
+```C
+(base) HAL@Macbook-Air project2025 % ./a.out
+Enter expressions or 'quit' to exit:
+> 2 x 3
+2 x 3 = 6
+> 3 x 2
+3 x 2 = 6
+> 987654321 x 987654321
+987654321 x 987654321 = 975461057789971041
+> 98765.4321 x 98765.4321
+98765.4321 x 98765.4321 = 9754610577.89971041
+> -123456789 x 123456789
+-123456789 x 123456789 = -15241578750190521
+> -123456789 x -123456789
+-123456789 x -123456789 = 15241578750190521
+```
+### 4. Division
+```C
+(base) HAL@Macbook-Air project2025 % ./a.out
+Enter expressions or 'quit' to exit:
+> 4 / 2
+4 / 2 = 2.00000000
+> 2 / 4
+2 / 4 = 0.50000000
+> 3 / 2
+3 / 2 = 1.50000000
+> 2 / 3
+2 / 3 = 0.66666667
+> 123456789 / 987654321
+123456789 / 987654321 = 0.12500000
+> -123456789 / 987654321
+-123456789 / 987654321 = -0.12500000
+```
+### 5. Calculation of scientific notation
+```C
+(base) HAL@Macbook-Air project2025 % ./a.out
+Enter expressions or 'quit' to exit:
+> 1e10 + 1e10
+1e10 + 1e10 = 2.00000000e+10
+> 1e20 - 1e19
+1e20 - 1e19 = 9.00000000e+19
+> 1e18 x 1e18
+1e18 x 1e18 = 1.00000000e+36
+> 1e18 / 1e4
+1e18 / 1e4 = 1.00000000e+14
+> 8 + 1e1
+8 + 1e1 = 1.80000000e+01
+```
