@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/HAL/Desktop/vscpp/lab2/exercise1'
+relocations:     []
+...
